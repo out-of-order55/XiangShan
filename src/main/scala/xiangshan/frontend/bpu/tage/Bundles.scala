@@ -75,12 +75,13 @@ class TageFoldedHist(numSets: Int)(implicit p: Parameters) extends TageBundle {
 
 class TagMatchResult(implicit p: Parameters) extends TageBundle {
   val hit:          Bool            = Bool()
-  val hitWayMaskOH: UInt            = UInt(NumWays.W)
   val entry:        TageEntry       = new TageEntry
   val usefulCtr:    SaturateCounter = new SaturateCounter(UsefulCtrWidth)
+  val hitWayMaskOH: UInt            = UInt(NumWays.W)
 }
 
 class UpdateInfo(implicit p: Parameters) extends TageBundle {
+  val valid:                Bool            = Bool()
   val providerTableOH:      UInt            = UInt(NumTables.W)
   val providerWayOH:        UInt            = UInt(NumWays.W)
   val providerEntry:        TageEntry       = new TageEntry
@@ -99,6 +100,9 @@ class UpdateInfo(implicit p: Parameters) extends TageBundle {
   val decreaseUseAlt: Bool = Bool()
 
   val needAllocate: Bool = Bool()
+  // perf analysis only
+  val hitTableMask: UInt = UInt(NumTables.W) // all the hit tables
+  val mispredicted:  Bool = Bool()
 }
 
 class ConditionalBranchTrace(implicit p: Parameters) extends TageBundle {
