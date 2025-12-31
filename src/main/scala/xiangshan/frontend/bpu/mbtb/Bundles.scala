@@ -18,12 +18,12 @@ package xiangshan.frontend.bpu.mbtb
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
+import xiangshan.frontend.PrunedAddr
 import xiangshan.frontend.bpu.BranchAttribute
 import xiangshan.frontend.bpu.BranchInfo
 import xiangshan.frontend.bpu.SaturateCounter
 import xiangshan.frontend.bpu.TargetCarry
 import xiangshan.frontend.bpu.WriteReqBundle
-import xiangshan.frontend.PrunedAddr
 
 class MainBtbEntry(implicit p: Parameters) extends MainBtbBundle {
   // whether the entry is valid
@@ -74,12 +74,12 @@ class MainBtbMeta(implicit p: Parameters) extends MainBtbBundle {
 
 class MainBtbTrace(implicit p: Parameters) extends MainBtbBundle {
 
-  val startPc: PrunedAddr = PrunedAddr(VAddrBits)
-  val cfiPosition: UInt  = UInt(CfiPositionWidth.W)
-  val attribute: BranchAttribute = new BranchAttribute
+  val startPc:     PrunedAddr      = PrunedAddr(VAddrBits)
+  val cfiPosition: UInt            = UInt(CfiPositionWidth.W)
+  val attribute:   BranchAttribute = new BranchAttribute
 
-  val setIdx: UInt       = UInt(SetIdxLen.W)
-  val internalIdx: UInt  = UInt(InternalBankIdxLen.W)
+  val setIdx:       UInt = UInt(SetIdxLen.W)
+  val internalIdx:  UInt = UInt(InternalBankIdxLen.W)
   val alignBankIdx: UInt = UInt(AlignBankIdxLen.W)
-  val wayIdx: UInt       = UInt(NumWay.W)
+  val wayIdx:       UInt = UInt(NumWay.W)
 }
