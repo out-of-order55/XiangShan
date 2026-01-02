@@ -197,6 +197,7 @@ class MainBtbAlignBank(
   replacer.io.predictTouch.valid        := s2_fire && s2_takenMask.reduce(_ || _)
   replacer.io.predictTouch.bits.setIdx  := getReplacerSetIndex(s2_startPc)
   replacer.io.predictTouch.bits.wayMask := s2_takenMask.asUInt
+  
 
   /* *** t1 ***
    * send write req to internal banks (srams)
@@ -251,7 +252,7 @@ class MainBtbAlignBank(
   replacer.io.trainTouch.valid        := t1_fire && t1_entryNeedWrite
   replacer.io.trainTouch.bits.setIdx  := getReplacerSetIndex(t1_startPc)
   replacer.io.trainTouch.bits.wayMask := t1_entryWayMask
-
+  replacer.io.isEviction                := t1_fire && t1_mispredictInfo.valid && (!t1_hit)
   /* *** update counter *** */
   private val t1_newCounters    = Wire(Vec(NumWay, new SaturateCounter(TakenCntWidth)))
   private val t1_counterWayMask = Wire(Vec(NumWay, Bool()))

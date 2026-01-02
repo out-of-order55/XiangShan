@@ -20,6 +20,7 @@ import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import xiangshan.frontend.bpu.PlruStateGen
 import xiangshan.frontend.bpu.ReplacerState
+import xiangshan.frontend.bpu.RrpvStateGen
 
 class MainBtbReplacer(implicit p: Parameters) extends MainBtbModule {
   class MainBtbReplacerIO extends Bundle {
@@ -33,6 +34,7 @@ class MainBtbReplacer(implicit p: Parameters) extends MainBtbModule {
     }
 
     val victim: Victim            = Output(new Victim)
+    val isEviction: Bool        = Input(Bool())
     val touch:  Vec[Valid[Touch]] = Vec(2, Flipped(Valid(new Touch))) // magic number 2: predict and train
 
     def predictTouch: Valid[Touch] = touch(0)
@@ -41,9 +43,9 @@ class MainBtbReplacer(implicit p: Parameters) extends MainBtbModule {
 
   val io: MainBtbReplacerIO = IO(new MainBtbReplacerIO)
 
-  private val stateBank       = Module(new ReplacerState(NumSets, NumWay))
-  private val predictStateGen = Module(new PlruStateGen(NumWay, accessSize = NumWay))
-  private val trainStateGen   = Module(new PlruStateGen(NumWay, accessSize = 1))
+  private val stateBank       = Module(new ReplacerState(NumSets, NumWay*2))
+  private val predictStateGen = Module(new RrpvStateGen(NumWay, accessSize = NumWay,2))
+  private val trainStateGen   = Module(new RrpvStateGen(NumWay, accessSize = 1,2))
 
   /* *** predict *** */
   // read current state
@@ -59,9 +61,11 @@ class MainBtbReplacer(implicit p: Parameters) extends MainBtbModule {
   })
 
   // generate next state
-  predictStateGen.io.stateIn   := predictState
+  
+  predictStateGen.io.stateIn   := predictState.asTypeOf(Vec(NumWay, UInt(2.W)))
   predictStateGen.io.touchWays := predictTouchWay
-  private val predictNextState = Mux(io.predictTouch.valid, predictStateGen.io.nextState, predictState)
+  predictStateGen.io.isEviction := false.B
+  private val predictNextState = Mux(io.predictTouch.valid, predictStateGen.io.nextState.asUInt, predictState)
 
   // write back next state
   stateBank.io.predictWriteValid  := io.predictTouch.valid
@@ -80,9 +84,10 @@ class MainBtbReplacer(implicit p: Parameters) extends MainBtbModule {
   assert(!io.trainTouch.valid || PopCount(io.victim.wayMask) <= 1.U, "victim wayMask should be at-most-one-hot")
 
   // generate next state
-  trainStateGen.io.stateIn   := trainState
+  trainStateGen.io.stateIn   := trainState.asTypeOf(Vec(NumWay, UInt(2.W)))
   trainStateGen.io.touchWays := VecInit(Seq(trainTouchWay))
-  private val trainNextState = Mux(io.trainTouch.valid, trainStateGen.io.nextState, trainState)
+  trainStateGen.io.isEviction := io.isEviction
+  private val trainNextState = Mux(io.trainTouch.valid, trainStateGen.io.nextState.asUInt, trainState)
 
   // write back next state
   stateBank.io.trainWriteValid  := io.trainTouch.valid
