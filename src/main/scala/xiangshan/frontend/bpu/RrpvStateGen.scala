@@ -52,15 +52,15 @@ class RrpvStateGen(val n_ways: Int, val accessSize: Int = 1,val rrpvBits: Int) e
 		}
 		nextState
   }
+	val maxRrpv = ((1<<rrpvBits)-1).U(rrpvBits.W)
 	// get the way with max RRPV
   def getReplaceWay(state: Vec[UInt], Nways: Int): UInt = {
-    val max = (1<<rrpvBits-1).U(rrpvBits.W)
-    val distances = state.map(s => 
-      Mux(s===max,0.U, max - s)
-    )
+    
+    val distances = state.map(s => (maxRrpv-s))
 		val wayCompareMatrix = CompareMatrix(VecInit(distances))
+		//find the min distance way
 		val minDistanceMask =(0 until n_ways).map{i=>
-			PopCount(wayCompareMatrix(i))===n_ways.U
+			PopCount(wayCompareMatrix(i))===(n_ways-1).U
 		}
 		PriorityEncoder(minDistanceMask)
   }
@@ -79,10 +79,10 @@ class RrpvStateGen(val n_ways: Int, val accessSize: Int = 1,val rrpvBits: Int) e
   }
 	//update RRPV during eviction
 	def aging(victimWay: UInt):	Unit = {
-		val distance = (1<<rrpvBits-1).U(rrpvBits.W) - io.stateIn(victimWay)
+		val distance = maxRrpv - io.stateIn(victimWay)
 		for(i <- 0 until n_ways) {
 			when(i.U === victimWay){
-				stateOut(i) := (1<<rrpvBits-2).U(rrpvBits.W)
+				stateOut(i) := ((1<<rrpvBits)-2).U(rrpvBits.W)
 			}.otherwise{
 				stateOut(i) := io.stateIn(i) + distance
 			}
@@ -91,7 +91,7 @@ class RrpvStateGen(val n_ways: Int, val accessSize: Int = 1,val rrpvBits: Int) e
 	when(io.isEviction){
 		aging(io.replaceWay)
 	}.otherwise{
-  	access(io.touchWays.toSeq)
+		access(io.touchWays.toSeq)
 	}
   io.nextState := stateOut
 }
