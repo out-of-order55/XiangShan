@@ -35,7 +35,7 @@ case class MainBtbParameters(
     // Base table
     TakenCntWidth: Int = 2,
     // Mbtb write trace
-    EnableMainbtbTrace: Boolean = false
+    EnableMainbtbTrace: Boolean = true
 ) {}
 
 // TODO: expose this to Parameters.scala / XSCore.scala

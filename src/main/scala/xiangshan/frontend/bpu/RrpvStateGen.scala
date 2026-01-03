@@ -45,7 +45,7 @@ class RrpvStateGen(val n_ways: Int, val accessSize: Int = 1,val rrpvBits: Int) e
 				touchWay.valid && (touchWay.bits === i.U)
 			}.reduce(_ || _)
 			when(isTouched) {
-				nextState(i) := 0.U(rrpvBits.W)
+				nextState(i) := Mux(state(i)===0.U,0.U(rrpvBits.W),state(i)-1.U)
 			}.otherwise{
 				nextState(i) := state(i)
 			}
