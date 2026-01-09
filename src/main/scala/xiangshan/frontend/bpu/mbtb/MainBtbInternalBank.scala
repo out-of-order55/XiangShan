@@ -46,6 +46,7 @@ class MainBtbInternalBank(
         val setIdx:  UInt         = UInt(SetIdxLen.W)
         val wayMask: UInt         = UInt(NumWay.W)
         val entry:   MainBtbEntry = new MainBtbEntry
+        val debug_pc: UInt      = UInt(VAddrBits.W) // for debug purpose only
       }
 
       val req: Valid[Req] = Flipped(Valid(new Req))
@@ -188,6 +189,14 @@ class MainBtbInternalBank(
         writeValid,
         writeEntry.req.bits.entry,
         0.U.asTypeOf(new MainBtbEntry)
+      ),
+      valid
+    )
+    bufWrite.bits.debug_pc := RegEnable(
+      Mux(
+        writeValid,
+        writeEntry.req.bits.debug_pc,
+        0.U
       ),
       valid
     )

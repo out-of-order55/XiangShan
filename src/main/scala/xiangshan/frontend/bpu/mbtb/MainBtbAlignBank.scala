@@ -244,6 +244,7 @@ class MainBtbAlignBank(
     b.io.writeEntry.req.bits.setIdx  := t1_setIdx
     b.io.writeEntry.req.bits.wayMask := t1_entryWayMask
     b.io.writeEntry.req.bits.entry   := t1_entry
+    b.io.writeEntry.req.bits.debug_pc:= t1_startPc.toUInt + (t1_mispredictInfo.bits.cfiPosition<<1.U)
   }
 
   // update replacer

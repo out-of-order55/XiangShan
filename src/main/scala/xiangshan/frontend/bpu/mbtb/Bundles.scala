@@ -57,6 +57,7 @@ class MainBtbEntry(implicit p: Parameters) extends MainBtbBundle {
 class MainBtbEntrySramWriteReq(implicit p: Parameters) extends WriteReqBundle with HasMainBtbParameters {
   val setIdx:       UInt         = UInt(SetIdxLen.W)
   val entry:        MainBtbEntry = new MainBtbEntry
+  val debug_pc:    UInt         = UInt(VAddrBits.W)
   override def tag: Option[UInt] = Some(Cat(entry.tag, entry.position)) // use entry's tag directly
 }
 
