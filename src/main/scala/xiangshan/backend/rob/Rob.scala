@@ -1504,7 +1504,26 @@ class RobImp(override val wrapper: Rob)(implicit p: Parameters, params: BackendP
       reset = reset
     )
   }
+  val br_debug_table = ChiselDB.createTable("BrDebugTable" + p(XSCoreParamsKey).HartId.toString, new BRInfoEntry, basicDB = true)
+  for (i <- 0 until CommitWidth) {
+    val log_enable = io.commits.commitValid(i) && io.commits.isCommit && (io.commits.info(i).commitType === CommitType.BRANCH)
+    val commit_index = io.commits.robIdx(i).value
+    val br_debug_data = Wire(new BRInfoEntry)
 
+    br_debug_data.pc    := io.commits.info(i).debug_pc.getOrElse(0.U)
+    br_debug_data.inst  := io.commits.info(i).debug_instr.getOrElse(0.U)
+    br_debug_data.isRVC := io.commits.info(i).isRVC
+    br_debug_data.robIdx := commit_index 
+
+
+    br_debug_table.log(
+      data = br_debug_data,
+      en = log_enable,
+      site = "BrDebugTable",
+      clock = clock,
+      reset = reset
+    )
+  }
   val debug_VecOtherPdest = RegInit(VecInit.fill(RobSize)(VecInit.fill(8)(0.U(PhyRegIdxWidth.W))))
 
   vldWBs.map{ vldWb =>

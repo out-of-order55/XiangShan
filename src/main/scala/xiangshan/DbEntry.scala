@@ -60,6 +60,13 @@ class LoadInfoEntry(implicit p: Parameters) extends XSBundle{
   val exeLatency = UInt(64.W)
 }
 
+class BRInfoEntry(implicit p: Parameters) extends XSBundle{
+  val pc = UInt(VAddrBits.W)
+  val inst = UInt(32.W)
+  val isRVC = Bool()
+  val robIdx = UInt(log2Ceil(RobSize).W)
+}
+
 class StreamPFTraceInEntry(implicit p: Parameters) extends XSBundle with HasL1PrefetchHelper{
   val TriggerPC = UInt(VAddrBits.W)
   val TriggerVaddr = UInt(VAddrBits.W)
