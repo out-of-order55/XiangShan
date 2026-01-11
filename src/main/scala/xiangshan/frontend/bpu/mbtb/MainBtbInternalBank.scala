@@ -43,10 +43,10 @@ class MainBtbInternalBank(
 
     class WriteEntry extends Bundle {
       class Req extends Bundle {
-        val setIdx:  UInt         = UInt(SetIdxLen.W)
-        val wayMask: UInt         = UInt(NumWay.W)
-        val entry:   MainBtbEntry = new MainBtbEntry
-        val debug_pc: UInt      = UInt(VAddrBits.W) // for debug purpose only
+        val setIdx:   UInt         = UInt(SetIdxLen.W)
+        val wayMask:  UInt         = UInt(NumWay.W)
+        val entry:    MainBtbEntry = new MainBtbEntry
+        val debug_pc: UInt         = UInt(VAddrBits.W) // for debug purpose only
       }
 
       val req: Valid[Req] = Flipped(Valid(new Req))
@@ -71,13 +71,22 @@ class MainBtbInternalBank(
 
       val req: Valid[Req] = Flipped(Valid(new Req))
     }
+    class SramWriteTrace extends Bundle {
+      class Req extends Bundle {
+        val setIdx:   UInt         = UInt(SetIdxLen.W)
+        val entry:    MainBtbEntry = new MainBtbEntry
+        val debug_pc: UInt         = UInt(VAddrBits.W) // for debug purpose only
+      }
 
+      val sramtrace = Vec(NumWay, Valid(new Req))
+    }
     val resetDone: Bool = Output(Bool())
 
-    val read:         Read         = new Read
-    val writeEntry:   WriteEntry   = new WriteEntry
-    val writeCounter: WriteCounter = new WriteCounter
-    val flush:        Flush        = new Flush
+    val read:         Read           = new Read
+    val writeEntry:   WriteEntry     = new WriteEntry
+    val writeCounter: WriteCounter   = new WriteCounter
+    val flush:        Flush          = new Flush
+    val trace:        SramWriteTrace = new SramWriteTrace
   }
 
   val io: MainBtbInternalBankIO = IO(new MainBtbInternalBankIO)
@@ -150,12 +159,19 @@ class MainBtbInternalBank(
   read.resp.counters := counterSram.io.r.resp.data
 
   /* *** writeBuffer -> sram *** */
+
   // entry
-  (entrySrams zip entryWriteBuffer.io.read).foreach { case (way, bufRead) =>
+  (entrySrams zip entryWriteBuffer.io.read zip io.trace.sramtrace).foreach { case ((way, bufRead), trace) =>
     way.io.w.req.valid        := bufRead.valid && !way.io.r.req.valid
     way.io.w.req.bits.data(0) := bufRead.bits.entry
     way.io.w.req.bits.setIdx  := bufRead.bits.setIdx
     bufRead.ready             := way.io.w.req.ready && !way.io.r.req.valid
+
+    trace.valid         := bufRead.valid && !way.io.r.req.valid && way.io.w.req.ready
+    trace.bits.setIdx   := bufRead.bits.setIdx
+    trace.bits.entry    := bufRead.bits.entry
+    trace.bits.debug_pc := bufRead.bits.debug_pc
+
   }
   // counter
   counterSram.io.w.req.valid            := counterWriteBuffer.io.deq.valid && !counterSram.io.r.req.valid

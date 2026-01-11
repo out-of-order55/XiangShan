@@ -17,10 +17,12 @@ package xiangshan.frontend.bpu.mbtb
 
 import chisel3._
 import chisel3.util._
+import freechips.rocketchip.util.SeqToAugmentedSeq
 import org.chipsalliance.cde.config.Parameters
 import utility.XSPerfAccumulate
 import utility.XSPerfHistogram
 import xiangshan.frontend.PrunedAddr
+import xiangshan.frontend.belady.BeladyReplacerModule
 import xiangshan.frontend.bpu.BranchInfo
 import xiangshan.frontend.bpu.Prediction
 import xiangshan.frontend.bpu.StageCtrl
@@ -88,7 +90,11 @@ class MainBtbAlignBank(
     Module(new MainBtbInternalBank(alignIdx, bankIdx))
   }
 
-  private val replacer = Module(new MainBtbReplacer)
+  private val replacer = Module(new BeladyReplacerModule(
+    numSets = NumSets,
+    numWays = NumWay,
+    numBanks = NumInternalBanks
+  ))
 
   io.resetDone := internalBanks.map(_.io.resetDone).reduce(_ && _)
 
@@ -193,9 +199,9 @@ class MainBtbAlignBank(
     )
   })
 
-  replacer.io.predictTouch.valid        := s2_fire && s2_takenMask.reduce(_ || _)
-  replacer.io.predictTouch.bits.setIdx  := getReplacerSetIndex(s2_startPc)
-  replacer.io.predictTouch.bits.wayMask := s2_takenMask.asUInt
+  // replacer.io.predictTouch.valid        := s2_fire && s2_takenMask.reduce(_ || _)
+  // replacer.io.predictTouch.bits.setIdx  := getReplacerSetIndex(s2_startPc)
+  // replacer.io.predictTouch.bits.wayMask := s2_takenMask.asUInt
 
   /* *** t1 ***
    * send write req to internal banks (srams)
@@ -226,7 +232,7 @@ class MainBtbAlignBank(
       !(t1_mispredictInfo.bits.attribute === Mux1H(t1_hitMask, t1_meta.map(_.attribute)))
   )
   // Use hit wayMask if hit, else use replacer's victim way
-  private val t1_entryWayMask = Mux(t1_hit, t1_hitMask, replacer.io.victim.wayMask)
+  private val t1_entryWayMask = Mux(t1_hit, t1_hitMask, UIntToOH(replacer.io.victimWay))
 
   private val t1_entry = Wire(new MainBtbEntry)
   t1_entry.valid           := true.B
@@ -240,17 +246,19 @@ class MainBtbAlignBank(
   assert(!t1_fire || t1_alignBankIdx === alignIdx.U, "MainBtbAlignBank alignIdx mismatch")
 
   internalBanks.zipWithIndex.foreach { case (b, i) =>
-    b.io.writeEntry.req.valid        := t1_fire && t1_entryNeedWrite && t1_internalBankMask(i)
-    b.io.writeEntry.req.bits.setIdx  := t1_setIdx
-    b.io.writeEntry.req.bits.wayMask := t1_entryWayMask
-    b.io.writeEntry.req.bits.entry   := t1_entry
-    b.io.writeEntry.req.bits.debug_pc:= t1_startPc.toUInt + (t1_mispredictInfo.bits.cfiPosition<<1.U)
+    b.io.writeEntry.req.valid         := t1_fire && t1_entryNeedWrite && t1_internalBankMask(i)
+    b.io.writeEntry.req.bits.setIdx   := t1_setIdx
+    b.io.writeEntry.req.bits.wayMask  := t1_entryWayMask
+    b.io.writeEntry.req.bits.entry    := t1_entry
+    b.io.writeEntry.req.bits.debug_pc := t1_startPc.toUInt + (t1_mispredictInfo.bits.cfiPosition << 1.U)
   }
 
   // update replacer
-  replacer.io.trainTouch.valid        := t1_fire && t1_entryNeedWrite
-  replacer.io.trainTouch.bits.setIdx  := getReplacerSetIndex(t1_startPc)
-  replacer.io.trainTouch.bits.wayMask := t1_entryWayMask
+
+  replacer.io.writeBankMask := internalBanks.map(_.io.trace.sramtrace.map(_.valid).reduce(_ || _)).asUInt
+  replacer.io.writeSetIdx   := VecInit(internalBanks.map(p => VecInit(p.io.trace.sramtrace.map(_.bits.setIdx))))
+  replacer.io.writePc       := VecInit(internalBanks.map(p => VecInit(p.io.trace.sramtrace.map(_.bits.debug_pc))))
+  replacer.io.writeWayMask  := internalBanks.map(_.io.trace.sramtrace.map(_.valid).asUInt)
 
   /* *** update counter *** */
   private val t1_newCounters    = Wire(Vec(NumWay, TakenCounter()))
