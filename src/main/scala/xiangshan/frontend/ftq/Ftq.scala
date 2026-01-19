@@ -35,6 +35,7 @@ import xiangshan.RedirectLevel
 import xiangshan.TopDownCounters
 import xiangshan.backend.CtrlToFtqIO
 import xiangshan.frontend.BlameBpuSource
+import xiangshan.frontend.BlameBpuSource.BlameType.BTB
 import xiangshan.frontend.BpuPerfInfo
 import xiangshan.frontend.BpuToFtqIO
 import xiangshan.frontend.BpuTopDownInfo
@@ -182,11 +183,11 @@ class Ftq(implicit p: Parameters) extends FtqModule
 
   when(io.fromBpu.meta.valid) {
     val s3BpuPtr = io.fromBpu.s3FtqPtr.value
-    metaQueueRedirect(s3BpuPtr) := io.fromBpu.meta.bits.redirectMeta
-    metaQueueResolve(s3BpuPtr)  := io.fromBpu.meta.bits.resolveMeta
-    metaQueueCommit(s3BpuPtr)   := io.fromBpu.meta.bits.commitMeta
-
-    perfQueue(s3BpuPtr).bpuPerf := io.fromBpu.perfMeta
+    metaQueueRedirect(s3BpuPtr)     := io.fromBpu.meta.bits.redirectMeta
+    metaQueueResolve(s3BpuPtr)      := io.fromBpu.meta.bits.resolveMeta
+    metaQueueCommit(s3BpuPtr)       := io.fromBpu.meta.bits.commitMeta
+    perfQueue(s3BpuPtr).isICacheHit := false.B
+    perfQueue(s3BpuPtr).bpuPerf     := io.fromBpu.perfMeta
     perfQueue(s3BpuPtr).isCfi.foreach(_ := false.B)
     perfQueue(s3BpuPtr).mispredict := false.B
   }
@@ -353,6 +354,10 @@ class Ftq(implicit p: Parameters) extends FtqModule
     }
   }
 
+  // ICache hit signal write
+  when(io.fromIfu.isICacheHit) {
+    perfQueue(io.fromIfu.debugFtqIdx.value).isICacheHit := true.B
+  }
   // --------------------------------------------------------------------------------
   // Commit and train BPU
   // --------------------------------------------------------------------------------
@@ -491,6 +496,66 @@ class Ftq(implicit p: Parameters) extends FtqModule
     "commit_branch_mispredicts_reason",
     commit && commitPerfMeta.mispredict,
     BlameBpuSource.BlameType.getValidSeq(BlameBpuSource(commitPerfMeta.bpuPerf, commitPerfMeta.mispredictBranchInfo))
+  )
+  XSPerfAccumulate(
+    "commit_branch_mispredicts_reason_mbtb_type",
+    commit && commitPerfMeta.mispredict && BlameBpuSource(
+      commitPerfMeta.bpuPerf,
+      commitPerfMeta.mispredictBranchInfo
+    ) === BTB,
+    Seq(
+      ("conditional", commitPerfMeta.mispredictBranchInfo.attribute.isConditional),
+      ("direct", commitPerfMeta.mispredictBranchInfo.attribute.isDirect),
+      ("indirect", commitPerfMeta.mispredictBranchInfo.attribute.isIndirect),
+      (
+        "indirect_retcall",
+        commitPerfMeta.mispredictBranchInfo.attribute.isReturnAndCall
+          && commitPerfMeta.mispredictBranchInfo.attribute.isIndirect
+      ),
+      ("call", commitPerfMeta.mispredictBranchInfo.attribute.isCall),
+      ("ret", commitPerfMeta.mispredictBranchInfo.attribute.isReturn)
+    )
+  )
+  XSPerfAccumulate(
+    "commit_branch_mispredicts_reason_mbtb_l1ihit_type",
+    commit && commitPerfMeta.mispredict && BlameBpuSource(
+      commitPerfMeta.bpuPerf,
+      commitPerfMeta.mispredictBranchInfo
+    ) === BTB &&
+      commitPerfMeta.isICacheHit,
+    Seq(
+      ("conditional", commitPerfMeta.mispredictBranchInfo.attribute.isConditional),
+      ("direct", commitPerfMeta.mispredictBranchInfo.attribute.isDirect),
+      ("indirect", commitPerfMeta.mispredictBranchInfo.attribute.isIndirect),
+      (
+        "indirect_retcall",
+        commitPerfMeta.mispredictBranchInfo.attribute.isReturnAndCall
+          && commitPerfMeta.mispredictBranchInfo.attribute.isIndirect
+      ),
+      ("call", commitPerfMeta.mispredictBranchInfo.attribute.isCall),
+      ("ret", commitPerfMeta.mispredictBranchInfo.attribute.isReturn)
+    )
+  )
+  // BTB MISS MUST cause s3 fall
+  XSPerfAccumulate(
+    "commit_branch_mispredicts_reason_mbtb_miss_l1hit_type",
+    commit && commitPerfMeta.mispredict && BlameBpuSource(
+      commitPerfMeta.bpuPerf,
+      commitPerfMeta.mispredictBranchInfo
+    ) === BTB &&
+      commitPerfMeta.isICacheHit && commitPerfMeta.bpuPerf.bpSource.s3Fallthrough,
+    Seq(
+      ("conditional", commitPerfMeta.mispredictBranchInfo.attribute.isConditional),
+      ("direct", commitPerfMeta.mispredictBranchInfo.attribute.isDirect),
+      ("indirect", commitPerfMeta.mispredictBranchInfo.attribute.isIndirect),
+      (
+        "indirect_retcall",
+        commitPerfMeta.mispredictBranchInfo.attribute.isReturnAndCall
+          && commitPerfMeta.mispredictBranchInfo.attribute.isIndirect
+      ),
+      ("call", commitPerfMeta.mispredictBranchInfo.attribute.isCall),
+      ("ret", commitPerfMeta.mispredictBranchInfo.attribute.isReturn)
+    )
   )
   XSPerfAccumulate(
     "commit_conditional_branch_mispredicts_reason",

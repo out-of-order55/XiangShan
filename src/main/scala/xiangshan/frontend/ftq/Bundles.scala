@@ -88,4 +88,6 @@ class PerfMeta(implicit p: Parameters) extends FtqBundle {
   // no matter how many mispredictions happened before, count correct-path only
   val mispredict:           Bool       = Bool()
   val mispredictBranchInfo: BranchInfo = new BranchInfo()
+
+  val isICacheHit: Bool = Bool()
 }

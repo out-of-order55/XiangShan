@@ -184,9 +184,10 @@ class Ifu(implicit p: Parameters) extends IfuModule
 
   private val s1_iCacheRespValid = fromICache.valid
 
-  s1_fire  := s1_valid && s2_ready && s1_iCacheRespValid
-  s1_ready := s1_fire || !s1_valid
-
+  s1_fire           := s1_valid && s2_ready && s1_iCacheRespValid
+  s1_ready          := s1_fire || !s1_valid
+  toFtq.isICacheHit := s1_fire
+  toFtq.debugFtqIdx := s1_fetchBlock(0).ftqIdx
   io.toICache.stall := !s2_ready
   iCacheMatchAssert(fromICache, s1_fetchBlock)
 
